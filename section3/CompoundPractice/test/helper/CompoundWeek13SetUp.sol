@@ -19,6 +19,7 @@ import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
 
 
 contract CompoundWeek13SetUp is Test {
+  address payable admin = payable(makeAddr("admin"));
   Unitroller unitroller;
   Comptroller comptroller;
   Comptroller proxyComptroller;
@@ -30,36 +31,29 @@ contract CompoundWeek13SetUp is Test {
 
   string nameA = "CTokenA";
   string symbolA = "cTA";
+  uint8 decimalsA = 18;
   string nameB = "CTokenB";
   string symbolB = "cTB";
-  uint8 decimalsA = 18;
   uint8 decimalsB = 18;
 
-  CErc20Delegate cErc20DelegateA;
-  CErc20Delegator cTokenA;
-
-  CErc20Delegate cErc20DelegateB;
-  CErc20Delegator cTokenB;
-
-  address public admin;
+  CErc20Delegate cDelegateeA;
+  CErc20Delegator cDelegatorA;
+  CErc20Delegate cDelegateeB;
+  CErc20Delegator cDelegatorB;
 
   function setUp() public virtual {
-    admin = makeAddr("admin");
-
     vm.startPrank(admin);
-
-    // Deploy Comptroller
+    // 1. Deploy Comptroller
     unitroller = new Unitroller();
     comptroller = new Comptroller();
     simplePriceOracle = new SimplePriceOracle();
     priceOracle = simplePriceOracle;
     uint closeFactor = 0;
     uint liquidationIncentive = 0;
-
     unitroller._setPendingImplementation(address(comptroller));
     comptroller._become(unitroller);
 
-    // Delegate call
+    // Execute delegate call
     proxyComptroller = Comptroller(address(unitroller));
     proxyComptroller._setLiquidationIncentive(liquidationIncentive);
     proxyComptroller._setCloseFactor(closeFactor);
@@ -69,60 +63,59 @@ contract CompoundWeek13SetUp is Test {
     TokenA = new ERC20("TokenA", "TA");
     TokenB = new ERC20("TokenB", "TB");
 
-    // Deploy CTokenA
-    uint baseRatePerYearA = 0;
-    uint mutliplierPerYearA = 0;
-    InterestRateModel interestRateModelA = new WhitePaperInterestRateModel(baseRatePerYearA, mutliplierPerYearA);
-    uint exchangeRateMantissaA = 1 * 1e18;
-    cErc20DelegateA = new CErc20Delegate();
+      // Deploy CToken
+      uint baseRatePerYearA = 0;
+      uint mutliplierPerYearA = 0;
+      InterestRateModel interestRateModelA = new WhitePaperInterestRateModel(baseRatePerYearA, mutliplierPerYearA);
+      uint exchangeRateMantissaA = 1 * 1e18;
+      cDelegateeA = new CErc20Delegate();
+      cDelegatorA = new CErc20Delegator(
+        address(TokenA),
+        proxyComptroller,
+        interestRateModelA,
+        exchangeRateMantissaA,
+        nameA,
+        symbolA,
+        decimalsA,
+        payable(admin),
+        address(cDelegateeA),
+        "0x0"
+      );
 
-    cTokenA = new CErc20Delegator(
-      address(TokenA),
-      proxyComptroller,
-      interestRateModelA,
-      exchangeRateMantissaA,
-      nameA,
-      symbolA,
-      decimalsA,
-      payable(admin),
-      address(cErc20DelegateA),
-      new bytes(0)
-    );
+      // 4. Deploy CToken
+      uint baseRatePerYearB = 0;
+      uint mutliplierPerYearB = 0;
+      InterestRateModel interestRateModelB = new WhitePaperInterestRateModel(baseRatePerYearB, mutliplierPerYearB);
+      uint exchangeRateMantissaB = 1 * 1e18;
+      cDelegateeB = new CErc20Delegate();
+      cDelegatorB = new CErc20Delegator(
+        address(TokenB),
+        proxyComptroller,
+        interestRateModelB,
+        exchangeRateMantissaB,
+        nameB,
+        symbolB,
+        decimalsB,
+        payable(admin),
+        address(cDelegateeB),
+        "0x0"
+      );
 
-    // Deploy CTokenB
-    uint baseRatePerYearB = 0;
-    uint mutliplierPerYearB = 0;
-    InterestRateModel interestRateModelB = new WhitePaperInterestRateModel(baseRatePerYearB, mutliplierPerYearB);
-    uint exchangeRateMantissaB = 1 * 1e18;
-    cErc20DelegateB = new CErc20Delegate();
+    // 5. Add CTokenA, CTokenB to market
+    proxyComptroller._supportMarket(CToken(address(cDelegatorA)));
+    proxyComptroller._supportMarket(CToken(address(cDelegatorB)));
 
-    cTokenB = new CErc20Delegator(
-      address(TokenB),
-      proxyComptroller,
-      interestRateModelB,
-      exchangeRateMantissaB,
-      nameB,
-      symbolB,
-      decimalsB,
-      payable(admin),
-      address(cErc20DelegateB),
-      new bytes(0)
-    );
-
-    // Add CTokenA, CTokenB to market
-    proxyComptroller._supportMarket(CToken(address(cTokenA)));
-    proxyComptroller._supportMarket(CToken(address(cTokenB)));
-
+    // 6. Provide liquidity
     uint mintAmountA = 1000 * 10 ** TokenA.decimals();
     uint mintAmountB = 1000 * 10 ** TokenA.decimals();
 
     deal(address(TokenA), admin, mintAmountA);
-    TokenA.approve(address(cTokenA), mintAmountA);
-    cTokenA.mint(mintAmountA);
+    TokenA.approve(address(cDelegatorA), mintAmountA);
+    cDelegatorA.mint(mintAmountA);
 
     deal(address(TokenB), admin, mintAmountB);
-    TokenB.approve(address(cTokenB), mintAmountB);
-    cTokenB.mint(mintAmountB);
+    TokenB.approve(address(cDelegatorB), mintAmountB);
+    cDelegatorB.mint(mintAmountB);
 
     vm.stopPrank();
   }
