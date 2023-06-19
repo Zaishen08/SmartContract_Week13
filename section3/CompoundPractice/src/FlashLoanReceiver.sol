@@ -48,11 +48,11 @@ contract FlashLoanReceiver is IFlashLoanSimpleReceiver {
             amountOutMinimum: 0,
             sqrtPriceLimitX96: 0
         });
-        IERC20(rewardedToken).approve(UNISWAP_ROUTER, swapAmount);
+        uint256 totalLoan = amount + premium;
         uint256 amountOut = ISwapRouter(UNISWAP_ROUTER).exactInputSingle(swapParams);
-
+        require(amountOut >= totalLoan, "amountOut not enough");
         // Repay token
-        IERC20(asset).approve(msg.sender, loanAmount);
+        IERC20(asset).approve(msg.sender, totalLoan);
         return true;
     }
 

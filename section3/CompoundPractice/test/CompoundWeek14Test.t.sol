@@ -11,6 +11,7 @@ contract CompoundWeek14Test is CompoundWeek14SetUp {
     address user2 = makeAddr("user2");
     uint constant tokenAInitBalance = 2500 * 1e6;
     uint constant tokenBInitBalance = 2500 * 1e18;
+    FlashLoanReceiver public flashLoanReceiver;
 
     function setUp() override public {
         super.setUp();
@@ -37,7 +38,8 @@ contract CompoundWeek14Test is CompoundWeek14SetUp {
         assertEq(cUNI.balanceOf(user1), mintAmount);
 
         // User1 enter cUNI in market
-        address[] memory cTokens = [address(cUNI)];
+        address[] memory cTokens = new address[](1);
+        cTokens[0] = address(cUNI);
         uint[] memory successes = proxyComptroller.enterMarkets(cTokens);
         require(successes[0] == 0, "enter market fail");
 
